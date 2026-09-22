@@ -1,0 +1,93 @@
+# 智由 AI 视频任务平台 — 本地开发依赖
+#
+# 启动:  docker compose -f deploy/docker-compose.yml up -d
+# 停止:  docker compose -f deploy/docker-compose.yml down
+# 清库:  docker compose -f deploy/docker-compose.yml down -v
+#
+# 服务:
+#   postgres  5432  opengpu / opengpu / 库名 opengpu
+#   redis     6379  任务队列唤醒信号（可选，见 opengpu.queue.redis-enabled）
+#   minio     9000  S3 兼容对象存储 (控制台 9001, minioadmin / minioadmin)
+#
+# 只跑核心依赖（推荐，结果文件默认存本地磁盘，不需要 MinIO）:
+#   docker compose -f deploy/docker-compose.yml up -d postgres redis
+#
+# 若本机无法直连 Docker Hub，可先从国内镜像源拉取再打回标准 tag:
+#   docker pull docker.m.daocloud.io/library/postgres:16-alpine
+#   docker tag  docker.m.daocloud.io/library/postgres:16-alpine postgres:16-alpine
+#   docker pull docker.m.daocloud.io/library/redis:7-alpine
+#   docker tag  docker.m.daocloud.io/library/redis:7-alpine redis:7-alpine
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: opengpu-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: opengpu
+      POSTGRES_USER: opengpu
+      POSTGRES_PASSWORD: opengpu
+      TZ: Asia/Shanghai
+      PGTZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - opengpu-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opengpu -d opengpu"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: opengpu-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "no", "--save", ""]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: opengpu-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - opengpu-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  # 一次性任务: 自动创建结果存储桶，避免手工初始化
+  minio-init:
+    image: minio/mc:latest
+    container_name: opengpu-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/opengpu &&
+      mc anonymous set download local/opengpu &&
+      echo '[minio-init] bucket opengpu ready'
+      "
+
+volumes:
+  opengpu-pg-data:
+  opengpu-minio-data:

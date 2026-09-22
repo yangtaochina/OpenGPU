@@ -1,0 +1,3 @@
+# OpenGPU GPU Worker runtime dependencies.
+# The worker deliberately depends on a single third-party package.
+requests>=2.31,<3.0

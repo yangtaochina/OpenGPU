@@ -1,0 +1,48 @@
+# ---- Java / Maven ----
+target/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+*.war
+*.log
+hs_err_pid*
+
+# ---- Node / Vue ----
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+worker/work/
+worker/logs/
+
+# ---- Runtime data ----
+data/
+logs/
+*.pid
+
+# ---- IDE ----
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
+
+# ---- Secrets / local overrides ----
+.env
+.env.local
+application-local.yml
