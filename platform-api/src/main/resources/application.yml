@@ -1,0 +1,130 @@
+server:
+  port: 8080
+  tomcat:
+    # 结果文件最大 2GiB，关闭 Tomcat 的请求体丢弃限制
+    max-swallow-size: -1
+    connection-timeout: 30s
+
+spring:
+  application:
+    name: opengpu-platform-api
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/opengpu
+    username: opengpu
+    password: opengpu
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 2
+      connection-timeout: 10000
+      pool-name: opengpu-pool
+
+  jpa:
+    # 表结构由 Flyway 全权负责，Hibernate 不做 DDL
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 30
+        order_inserts: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  data:
+    redis:
+      # 仅在 opengpu.queue.redis-enabled=true 时才会被使用；
+      # 关闭时队列唤醒退化为轮询，不影响任何功能。
+      host: localhost
+      port: 6379
+      timeout: 2s
+      connect-timeout: 2s
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 0
+
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
+      file-size-threshold: 2MB
+
+  jackson:
+    default-property-inclusion: always
+    serialization:
+      write-dates-as-timestamps: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    root: INFO
+    com.zhiyou.opengpu: INFO
+    org.hibernate.SQL: WARN
+
+opengpu:
+  queue:
+    # 是否使用 Redis Streams 做「新任务」低延迟唤醒。
+    # 默认开启；置为 false 时纯靠数据库轮询，功能一致，仅多约 1 秒延迟。
+    redis-enabled: ${OPENGPU_REDIS_ENABLED:true}
+  security:
+    # 生产必须通过环境变量 OPENGPU_JWT_SECRET 覆盖
+    jwt-secret: ${OPENGPU_JWT_SECRET:opengpu-dev-jwt-secret-please-change-me-0123456789}
+    jwt-expire-minutes: 720
+    # 开发用固定 Worker token，仅在 dev 环境种子账号时使用
+    dev-worker-token: ${OPENGPU_DEV_WORKER_TOKEN:wkr_00000000-0000-0000-0000-000000000001_devsecret}
+    # 开放自助注册；关闭后注册接口返回 40301
+    registration-enabled: ${OPENGPU_REGISTRATION_ENABLED:true}
+    # 账号格式策略，通过 GET /api/auth/config 下发给前端
+    username-min-length: 3
+    username-max-length: 32
+    password-min-length: 6
+    password-max-length: 64
+  task:
+    lease-seconds: 300
+    max-retry: 2
+    max-prompt-length: 2000
+    # claim 长轮询上限，Worker 请求值超过此上限会被截断
+    max-claim-wait-seconds: 30
+    heartbeat-timeout-seconds: 90
+    heartbeat-interval-seconds: 20
+    lease-reaper-interval-seconds: 15
+    worker-monitor-interval-seconds: 30
+    max-file-size-bytes: 2147483648
+    allowed-video-extensions: mp4,webm,mov
+  storage:
+    # local | minio
+    type: ${OPENGPU_STORAGE_TYPE:local}
+    local-root: ./data/videos
+    public-base-url: ${OPENGPU_PUBLIC_BASE_URL:}
+    minio:
+      endpoint: http://localhost:9000
+      access-key: minioadmin
+      secret-key: minioadmin
+      bucket: opengpu
+      # 预签名地址对外可用时填写，例如 http://192.168.1.10:9000
+      public-endpoint: ${OPENGPU_MINIO_PUBLIC_ENDPOINT:}
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173
